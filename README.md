@@ -8,7 +8,12 @@ CGEA electrical architecture.
 - transceiver: U4;
 - OBD: piny 3/11.
 
-## build & upload (ST-Link)
+## hardware
+
+- red UCDS from aliexpress
+- st-link v2
+
+## build and upload (ST-Link)
 
 ```bash
 pio run -t upload
