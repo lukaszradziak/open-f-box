@@ -6,7 +6,7 @@ CGEA electrical architecture.
 - **HS/CAN1 @ 500000 bps**;
 - MCU: PB8/PB9, STB=PB3;
 - transceiver: U4;
-- OBD: piny 3/11.
+- OBD: pins 3/11.
 
 ## hardware
 
@@ -15,15 +15,39 @@ CGEA electrical architecture.
 
 ## build and upload (ST-Link)
 
+Install PlatformIO, connect ST-Link and flash the firmware:
+
 ```bash
 pio run -t upload
 ```
 
-## monitor (RTT)
+## USB serial monitor
+
+ST-Link is used only for flashing. Runtime output and commands use the board's
+USB CDC port (PA11/PA12).
+
+Install the Python dependency once:
 
 ```bash
-python3 rtt_monitor.py
+pip3 install -r requirements.txt
 ```
+
+After flashing, ST-Link may be disconnected. Connect the board's USB port with
+a data-capable USB cable and start the monitor:
+
+```bash
+python3 usb_monitor.py
+```
+
+The monitor automatically detects `/dev/cu.usbmodem*` on macOS (or
+`/dev/ttyACM*` on Linux), reconnects after a USB disconnect and saves output to
+`logs/usb_<date>_<time>.log`. A port can also be selected explicitly:
+
+```bash
+python3 usb_monitor.py /dev/cu.usbmodemXXXXXXXX 115200
+```
+
+Press `Ctrl+C` to close the monitor.
 
 Commands are handled immediately, without pressing Enter:
 

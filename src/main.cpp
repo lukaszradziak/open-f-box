@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <stdio.h>
 #include "SerialConfig.h"
 
 #include "VehicleState.h"
@@ -29,8 +30,9 @@ static void pollConsole() {
         } else if (command == '1') {
             sendingEnabled = !sendingEnabled;
             if (sendingEnabled) lastDataMs = millis();
-            Serial.print("0x2B4 transmission: ");
-            Serial.println(sendingEnabled ? "ON" : "OFF");
+            Serial.println(sendingEnabled
+                               ? "0x2B4 transmission: ON"
+                               : "0x2B4 transmission: OFF");
         } else if (command != '\r' && command != '\n') {
             Serial.print("Unknown command: ");
             Serial.println(command);
@@ -60,20 +62,15 @@ void loop() {
         buildPayload(payload);
         sendIsoTp(CAN_ID_DATA, payload, PAYLOAD_LEN);
 
-        Serial.print("TX 0x2B4  TPMS=");
-        Serial.print(state.tpmsFrontLeft);
-        Serial.print("/");
-        Serial.print(state.tpmsFrontRight);
-        Serial.print("/");
-        Serial.print(state.tpmsRearRight);
-        Serial.print("/");
-        Serial.print(state.tpmsRearLeft);
-        Serial.print("  speed=");
-        Serial.print(state.speed);
-        Serial.print("  rpm=");
-        Serial.print(state.rpm);
-        Serial.print("  fuel=");
-        Serial.print(state.fuelPercent);
-        Serial.println("%");
+        // USB CDC is more reliable when a complete line is submitted in one
+        // write instead of many consecutive Serial.print() calls.
+        char status[112];
+        const int length = snprintf(
+            status, sizeof(status),
+            "TX 0x2B4  TPMS=%u/%u/%u/%u  speed=%u  rpm=%u  fuel=%u%%\r\n",
+            state.tpmsFrontLeft, state.tpmsFrontRight,
+            state.tpmsRearRight, state.tpmsRearLeft,
+            state.speed, state.rpm, state.fuelPercent);
+        if (length > 0) Serial.write((const uint8_t *)status, (size_t)length);
     }
 }
