@@ -75,9 +75,70 @@ Commands are handled immediately, without pressing Enter:
 | `1`     | Toggle periodic `0x2B4` transmission ON/OFF  |
 | `u`     | Reboot into the factory USB DFU bootloader   |
 
+CAN logger and filter commands are completed with Enter:
+
+| Command       | Action                                                 |
+|---------------|--------------------------------------------------------|
+| `l.can1`      | Log CAN1, OBD 3/11 at 500 kbps                         |
+| `l.can2`      | Log CAN2, OBD 6/14 at 500 kbps                         |
+| `l.can3`      | Log CAN3, OBD 1/8 at 125 kbps                          |
+| `l` / `l.off` | Stop logging                                           |
+| `f.2b4`       | Accept only standard CAN ID `0x2B4`                    |
+| `f.200.2ff`   | Accept the inclusive standard-ID range `0x200-0x2FF`   |
+| `f`           | Clear the filter and accept all IDs                    |
+
+Only one logger bus is selected at a time. CAN2 and CAN3 are two pin mappings
+of the STM32F105's second bxCAN controller and cannot operate simultaneously.
+The filter may be configured before or after starting a logger and is retained
+when switching buses or stopping the logger. It uses the bxCAN hardware filter
+banks, with an exact software check when a range cannot fit those banks.
+
+Starting a logger automatically disables periodic `0x2B4` transmission. The
+`1` command cannot enable transmission while a logger is active. Stopping the
+logger leaves transmission disabled; press `1` explicitly to resume it.
+
+Received frames use the same format as `ucds-logger`:
+
+```text
+<ID hex> <byte0> <byte1> ... <byteN>
+```
+
+For example: `2B4 10 45 3B 01 01 01 DA 31`.
+
 The periodic transmission is enabled by default. Disabling it also pauses the
 mock vehicle-state updates. After enabling it again, the next record is sent
 after `DATA_INTERVAL_MS` (currently 1000 ms).
+
+## Web CAN logger
+
+[`logger.html`](logger.html) is a standalone, dependency-free Web Serial UI for
+the CAN logger. It works in Chromium-based browsers with Web Serial support,
+such as Google Chrome and Microsoft Edge. Safari and Firefox do not currently
+provide this API.
+
+Close `usb_monitor.py` before using the web logger because only one application
+can keep the USB CDC port open. Open `logger.html` in a supported browser and:
+
+1. click **Connect USB** and select the UCDS USB serial port;
+2. select CAN1, CAN2 or CAN3;
+3. click **Start logger**;
+4. optionally select an exact ID or an inclusive ID range and click
+   **Apply filter**;
+5. use **Stop logger** to leave logger mode.
+
+The filter accepts standard 11-bit hexadecimal CAN IDs from `000` to `7FF`.
+Select **All IDs** to clear an existing filter. The text area shows the complete
+USB output, including firmware status messages and received CAN frames. **Clear
+output** only clears the browser text area and does not change the device state.
+
+If the browser does not allow Web Serial from a directly opened local file,
+serve the same single file locally from the project directory:
+
+```bash
+python3 -m http.server 8000
+```
+
+Then open `http://localhost:8000/logger.html`.
 
 ## Firmware update over USB
 
@@ -102,8 +163,8 @@ python3 usb_upload.py
 ```
 
 The updater prints DFU/CDC state every 0.5 seconds and writes a detailed log to
-`logs/usb_upload_<date>_<time>.log`. On a timeout, the log also contains raw
-`dfu-util -l`, `ioreg` and `system_profiler` USB diagnostics.
+`logs/usb_upload_<date>_<time>.log`. On a timeout, the log also contains filtered
+`dfu-util -l` output plus raw `ioreg` and `system_profiler` USB diagnostics.
 
 The script performs the complete update:
 

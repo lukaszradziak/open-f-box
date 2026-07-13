@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UCDS CAN Logger</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: system-ui, sans-serif;
+      --bg: #f4f7fb;
+      --surface: #ffffff;
+      --surface-muted: #f8fafc;
+      --text: #172033;
+      --muted: #667085;
+      --border: #d8dee9;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --focus: #93b4ff;
+      --shadow: 0 4px 14px rgb(24 39 75 / 7%);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1117;
+        --surface: #161b22;
+        --surface-muted: #0d1117;
+        --text: #e6edf3;
+        --muted: #8b949e;
+        --border: #30363d;
+        --primary: #3b82f6;
+        --primary-hover: #60a5fa;
+        --focus: #1f6feb;
+        --shadow: 0 4px 14px rgb(0 0 0 / 20%);
+      }
+    }
+
+    body {
+      box-sizing: border-box;
+      max-width: 1000px;
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 24px;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    h1 {
+      margin: 0 0 22px;
+      font-size: clamp(26px, 4vw, 36px);
+      letter-spacing: -0.03em;
+    }
+
+    .panel {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: end;
+      margin-bottom: 16px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    label {
+      display: grid;
+      gap: 5px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    button, select, input {
+      box-sizing: border-box;
+      min-height: 38px;
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      font: inherit;
+      color: var(--text);
+      background: var(--surface-muted);
+      transition: border-color 120ms, box-shadow 120ms, background 120ms;
+    }
+
+    input { width: 120px; }
+    button {
+      cursor: pointer;
+      font-weight: 650;
+    }
+    button:hover:not(:disabled) { border-color: var(--primary); }
+    button:disabled { cursor: not-allowed; opacity: 0.55; }
+
+    button:focus-visible, select:focus-visible, input:focus-visible {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--focus);
+    }
+
+    #connect, #start, #applyFilter {
+      border-color: var(--primary);
+      color: #fff;
+      background: var(--primary);
+    }
+
+    #connect:hover:not(:disabled),
+    #start:hover:not(:disabled),
+    #applyFilter:hover:not(:disabled) {
+      background: var(--primary-hover);
+    }
+
+    #status {
+      width: fit-content;
+      margin: 0 0 16px;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--muted);
+      background: var(--surface);
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    #output {
+      box-sizing: border-box;
+      width: 100%;
+      height: 55vh;
+      min-height: 300px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      resize: vertical;
+      color: var(--text);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre;
+    }
+
+    .grow { flex: 1; }
+    .hidden { display: none; }
+    .hint { color: var(--muted); font-size: 13px; }
+
+    @media (max-width: 620px) {
+      body { padding: 16px; }
+      .panel { align-items: stretch; }
+      .panel > label { width: 100%; }
+      select, input { width: 100%; }
+      .grow { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <h1>UCDS CAN Logger</h1>
+
+  <div class="panel">
+    <button id="connect">Connect USB</button>
+    <button id="disconnect" disabled>Disconnect</button>
+    <button id="help" disabled>Device help</button>
+    <span class="grow"></span>
+    <button id="clear">Clear output</button>
+  </div>
+
+  <p id="status">Disconnected</p>
+
+  <div class="panel">
+    <label>
+      CAN bus
+      <select id="bus">
+        <option value="can1">CAN1 — OBD 3/11 — 500 kbps</option>
+        <option value="can2">CAN2 — OBD 6/14 — 500 kbps</option>
+        <option value="can3">CAN3 — OBD 1/8 — 125 kbps</option>
+      </select>
+    </label>
+    <button id="start" disabled>Start logger</button>
+    <button id="stop" disabled>Stop logger</button>
+  </div>
+
+  <div class="panel">
+    <label>
+      Filter
+      <select id="filterMode">
+        <option value="all">All IDs</option>
+        <option value="exact">Exact ID</option>
+        <option value="range">ID range</option>
+      </select>
+    </label>
+
+    <label id="exactGroup" class="hidden">
+      ID (hex)
+      <input id="exactId" value="2B4" maxlength="5" spellcheck="false">
+    </label>
+
+    <label id="fromGroup" class="hidden">
+      From (hex)
+      <input id="fromId" value="200" maxlength="5" spellcheck="false">
+    </label>
+
+    <label id="toGroup" class="hidden">
+      To (hex)
+      <input id="toId" value="2FF" maxlength="5" spellcheck="false">
+    </label>
+
+    <button id="applyFilter" disabled>Apply filter</button>
+  </div>
+
+  <p class="hint">
+    Web Serial works in Chromium-based browsers such as Chrome and Edge.
+    Select the board's USB CDC port when the browser asks for permission.
+  </p>
+
+  <textarea id="output" readonly spellcheck="false"
+            aria-label="CAN logger output"></textarea>
+
+  <script>
+    const ui = {
+      connect: document.querySelector('#connect'),
+      disconnect: document.querySelector('#disconnect'),
+      help: document.querySelector('#help'),
+      clear: document.querySelector('#clear'),
+      status: document.querySelector('#status'),
+      bus: document.querySelector('#bus'),
+      start: document.querySelector('#start'),
+      stop: document.querySelector('#stop'),
+      filterMode: document.querySelector('#filterMode'),
+      exactGroup: document.querySelector('#exactGroup'),
+      exactId: document.querySelector('#exactId'),
+      fromGroup: document.querySelector('#fromGroup'),
+      fromId: document.querySelector('#fromId'),
+      toGroup: document.querySelector('#toGroup'),
+      toId: document.querySelector('#toId'),
+      applyFilter: document.querySelector('#applyFilter'),
+      output: document.querySelector('#output')
+    };
+
+    let port = null;
+    let reader = null;
+    let writer = null;
+    let reading = false;
+
+    function append(text) {
+      ui.output.value += text;
+      ui.output.scrollTop = ui.output.scrollHeight;
+    }
+
+    function message(text) {
+      append(`[web] ${text}\n`);
+    }
+
+    function setConnected(connected) {
+      ui.connect.disabled = connected;
+      ui.disconnect.disabled = !connected;
+      ui.help.disabled = !connected;
+      ui.start.disabled = !connected;
+      ui.stop.disabled = !connected;
+      ui.applyFilter.disabled = !connected;
+      ui.status.textContent = connected ? 'Connected @ 115200 baud' : 'Disconnected';
+    }
+
+    function updateFilterFields() {
+      const mode = ui.filterMode.value;
+      ui.exactGroup.classList.toggle('hidden', mode !== 'exact');
+      ui.fromGroup.classList.toggle('hidden', mode !== 'range');
+      ui.toGroup.classList.toggle('hidden', mode !== 'range');
+    }
+
+    function parseCanId(input, name) {
+      const text = input.trim().replace(/^0x/i, '');
+      if (!/^[0-9a-f]+$/i.test(text)) {
+        throw new Error(`${name} must be a hexadecimal CAN ID`);
+      }
+      const value = Number.parseInt(text, 16);
+      if (value < 0 || value > 0x7FF) {
+        throw new Error(`${name} must be between 000 and 7FF`);
+      }
+      return value;
+    }
+
+    async function send(command, enter = true) {
+      if (!writer) throw new Error('USB is not connected');
+      const data = new TextEncoder().encode(command + (enter ? '\n' : ''));
+      await writer.write(data);
+      message(`> ${command}`);
+    }
+
+    async function readLoop() {
+      const decoder = new TextDecoder();
+      reading = true;
+      try {
+        while (reading && port?.readable) {
+          reader = port.readable.getReader();
+          try {
+            while (reading) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              if (value) append(decoder.decode(value, { stream: true }));
+            }
+          } finally {
+            reader.releaseLock();
+            reader = null;
+          }
+        }
+      } catch (error) {
+        if (reading) message(`Read error: ${error.message}`);
+      } finally {
+        append(decoder.decode());
+        if (reading) await disconnect();
+      }
+    }
+
+    async function connect() {
+      if (!('serial' in navigator)) {
+        throw new Error('This browser does not support Web Serial; use Chrome or Edge');
+      }
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 115200 });
+      writer = port.writable.getWriter();
+      setConnected(true);
+      message('USB connected');
+      readLoop();
+    }
+
+    async function disconnect() {
+      reading = false;
+      if (reader) {
+        try { await reader.cancel(); } catch (_) {}
+      }
+      if (writer) {
+        try { writer.releaseLock(); } catch (_) {}
+        writer = null;
+      }
+      if (port) {
+        try { await port.close(); } catch (_) {}
+        port = null;
+      }
+      setConnected(false);
+      message('USB disconnected');
+    }
+
+    async function applyFilter() {
+      const mode = ui.filterMode.value;
+      if (mode === 'all') {
+        await send('f');
+        return;
+      }
+      if (mode === 'exact') {
+        const id = parseCanId(ui.exactId.value, 'ID');
+        await send(`f.${id.toString(16)}`);
+        return;
+      }
+
+      const from = parseCanId(ui.fromId.value, 'From');
+      const to = parseCanId(ui.toId.value, 'To');
+      if (to < from) throw new Error('To ID must be greater than or equal to From ID');
+      await send(`f.${from.toString(16)}.${to.toString(16)}`);
+    }
+
+    async function action(task) {
+      try {
+        await task();
+      } catch (error) {
+        message(`ERROR: ${error.message}`);
+      }
+    }
+
+    ui.connect.addEventListener('click', () => action(connect));
+    ui.disconnect.addEventListener('click', () => action(disconnect));
+    ui.help.addEventListener('click', () => action(() => send('h', false)));
+    ui.start.addEventListener('click', () =>
+      action(() => send(`l.${ui.bus.value}`)));
+    ui.stop.addEventListener('click', () => action(() => send('l')));
+    ui.applyFilter.addEventListener('click', () => action(applyFilter));
+    ui.clear.addEventListener('click', () => { ui.output.value = ''; });
+    ui.filterMode.addEventListener('change', updateFilterFields);
+
+    navigator.serial?.addEventListener('disconnect', event => {
+      if (event.port === port || event.target === port) action(disconnect);
+    });
+
+    updateFilterFields();
+    setConnected(false);
+  </script>
+</body>
+</html>

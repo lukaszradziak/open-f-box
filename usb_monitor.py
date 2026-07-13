@@ -5,8 +5,9 @@ Usage:
     python3 usb_monitor.py [port] [baud]
 
 The port is detected automatically when omitted. Keyboard input is forwarded
-immediately, so commands such as ``h`` and ``1`` do not require Enter. Output
-is displayed and saved to logs/usb_YYYYMMDD_HHMMSS.log.
+immediately: commands such as ``h`` and ``1`` need no Enter, while ``l...`` and
+``f...`` commands are line-based. Output is displayed and saved to
+logs/usb_YYYYMMDD_HHMMSS.log.
 """
 
 import datetime
@@ -100,7 +101,8 @@ def main():
                             sys.stdout.write(f"\r\nConnected: {port} @ {baud}\r\n")
                             sys.stdout.write(
                                 "Commands: h=help, 1=toggle transmission, "
-                                "u=USB DFU, Ctrl+C=quit\r\n"
+                                "l...=CAN logger, f...=filter, u=USB DFU, "
+                                "Ctrl+C=quit\r\n"
                             )
                             sys.stdout.flush()
                         except (OSError, serial.SerialException):
